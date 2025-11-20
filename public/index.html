@@ -6,81 +6,130 @@
     <title>self-chat</title>
     <link rel="icon" href="data:;base64,=">
     <style>
-        :root { --primary: #3b82f6; --bg: #f3f4f6; --text: #1f2937; }
-        * { box-sizing: border-box; }
-        body { max-width: 800px; margin: 0 auto; background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        /* --- 基础变量 & Reset --- */
+        :root { 
+            --primary: #3b82f6; 
+            --danger: #ef4444; 
+            --warning: #f59e0b;
+            --bg: #f3f4f6; 
+            --text: #1f2937; 
+            --glass: rgba(255, 255, 255, 0.95);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            max-width: 800px; margin: 0 auto; background: var(--bg); color: var(--text); 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
         
-        /* 登录层 */
+        /* --- 组件: Toast (仿 AntDesign Message) --- */
+        #toast-container {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 200; pointer-events: none; width: 90%; max-width: 400px;
+            display: flex; flex-direction: column; gap: 10px; align-items: center;
+        }
+        .toast {
+            background: #fff; padding: 10px 20px; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-size: 14px;
+            animation: slideDown 0.3s cubic-bezier(0.2, 0, 0.2, 1);
+            display: flex; align-items: center; gap: 8px; pointer-events: auto;
+        }
+        .toast.error { border-left: 4px solid var(--danger); }
+        .toast.success { border-left: 4px solid var(--primary); }
+        
+        /* --- 登录层 --- */
         #login-layer { position: fixed; inset: 0; background: #fff; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #login-layer input { padding: 12px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 15px; width: 220px; text-align: center; }
-        #login-layer button { padding: 10px 30px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; }
+        #login-layer input { padding: 12px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 15px; width: 220px; text-align: center; outline: none; transition: 0.2s; }
+        #login-layer input:focus { border-color: var(--primary); }
+        #login-layer button { padding: 10px 30px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
 
-        /* 顶部导航 */
-        header { padding: 10px 15px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-        .logo { font-weight: 700; font-size: 16px; }
-        .logout-btn { background: none; border: none; color: #6b7280; font-size: 12px; cursor: pointer; }
+        /* --- 顶部导航 --- */
+        header { padding: 12px 15px; background: var(--glass); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .logo { font-weight: 800; font-size: 18px; background: linear-gradient(45deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; color: transparent; }
+        .logout-btn { background: none; border: none; color: #6b7280; font-size: 12px; cursor: pointer; padding: 5px; }
 
-        /* --- 新增：控制状态栏 --- */
-        #status-bar { background: #f9fafb; padding: 8px 15px; font-size: 12px; color: #6b7280; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
-        .status-left { display: flex; align-items: center; gap: 10px; }
-        .status-right { font-family: monospace; }
+        /* --- 状态控制栏 --- */
+        #status-bar { background: #fff; padding: 8px 15px; font-size: 12px; color: #6b7280; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f0f0; flex-shrink: 0; }
+        .status-left { display: flex; align-items: center; gap: 12px; }
+        .toggle-label { display: flex; align-items: center; cursor: pointer; user-select: none; gap: 4px; }
+        .refresh-icon { cursor: pointer; padding: 3px 6px; background: #f3f4f6; border-radius: 4px; transition: 0.2s; font-weight: bold; }
+        .refresh-icon:active { transform: scale(0.9); }
+
+        /* --- 聊天区域 --- */
+        #chat-container { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column-reverse; gap: 12px; background: #fafafa; }
+        .msg-item { display: flex; flex-direction: column; align-items: flex-start; max-width: 88%; animation: fadeIn 0.3s ease; }
+        .msg-meta { font-size: 10px; color: #9ca3af; margin-bottom: 3px; margin-left: 2px; }
+        .msg-bubble { padding: 10px 14px; border-radius: 12px; border-top-left-radius: 2px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.02); line-height: 1.5; word-break: break-word; font-size: 15px; border: 1px solid #f0f0f0; }
         
-        /* 开关样式 */
-        .toggle-label { display: flex; align-items: center; cursor: pointer; user-select: none; }
-        .toggle-label input { margin-right: 5px; }
+        /* --- 输入区域 (优化版) --- */
+        #input-area { background: #fff; padding: 10px; border-top: 1px solid #eee; display: flex; gap: 8px; flex-shrink: 0; align-items: flex-end; position: relative; }
         
-        /* 刷新按钮 */
-        .refresh-icon { cursor: pointer; padding: 2px 6px; background: #e5e7eb; border-radius: 4px; margin-left: 5px; transition: 0.2s; }
-        .refresh-icon:hover { background: #d1d5db; }
-        .refresh-icon:active { transform: scale(0.95); }
+        /* 昵称框 */
+        #nick-input { width: 70px; height: 40px; padding: 0 5px; border: 1px solid #e5e7eb; border-radius: 8px; text-align: center; font-size: 13px; background: #f9fafb; outline: none; }
+        
+        /* 消息框容器：为了放字数统计 */
+        .msg-wrapper { flex: 1; position: relative; display: flex; flex-direction: column; }
+        #msg-input { width: 100%; height: 40px; padding: 8px 12px; padding-right: 50px; /* 给计数留位置 */ border: 1px solid #e5e7eb; border-radius: 20px; outline: none; font-size: 15px; transition: all 0.2s; -webkit-appearance: none; }
+        #msg-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        
+        /* 字数统计 */
+        #char-count { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 11px; color: #9ca3af; pointer-events: none; transition: color 0.2s; }
+        #char-count.near-limit { color: var(--warning); font-weight: bold; }
+        #char-count.limit { color: var(--danger); font-weight: bold; }
 
-        /* 聊天区域 */
-        #chat-container { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column-reverse; gap: 12px; }
-        .msg-item { display: flex; flex-direction: column; align-items: flex-start; max-width: 88%; }
-        .msg-meta { font-size: 10px; color: #9ca3af; margin-bottom: 2px; margin-left: 2px; }
-        .msg-bubble { padding: 8px 12px; border-radius: 8px; background: #fff; box-shadow: 0 1px 1px rgba(0,0,0,0.05); line-height: 1.4; word-break: break-word; }
+        /* 发送按钮 */
+        #send-btn { width: 45px; height: 40px; background: var(--primary); color: white; border: none; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; transition: 0.2s; }
+        #send-btn:active { transform: scale(0.95); }
+        #send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
 
-        /* 输入区域 */
-        #input-area { background: #fff; padding: 10px; border-top: 1px solid #e5e7eb; display: flex; gap: 8px; flex-shrink: 0; }
-        #nick-input { width: 60px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; text-align: center; font-size: 12px; }
-        #msg-input { flex: 1; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 20px; outline: none; }
-        #send-btn { background: var(--primary); color: white; border: none; padding: 0 15px; border-radius: 20px; font-size: 13px; cursor: pointer; }
-        #send-btn:disabled { background: #9ca3af; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
+    <!-- Toast 容器 -->
+    <div id="toast-container"></div>
+
+    <!-- 登录层 -->
     <div id="login-layer">
-        <h2>🔒 self-chat</h2>
-        <input type="password" id="pwd-input" placeholder="Password">
-        <button onclick="doLogin()">Login</button>
+        <h2 style="margin-bottom: 20px; color: #333;">🔐 self-chat</h2>
+        <input type="password" id="pwd-input" placeholder="Access Password">
+        <button onclick="doLogin()">Enter</button>
     </div>
 
+    <!-- 主应用 -->
     <div id="app" style="display:none; flex-direction: column; height: 100%;">
         <header>
             <div class="logo">self-chat</div>
             <button class="logout-btn" onclick="doLogout()">Logout</button>
         </header>
 
-        <!-- 新增：状态控制栏 -->
         <div id="status-bar">
             <div class="status-left">
                 <label class="toggle-label">
                     <input type="checkbox" id="auto-mode" checked onchange="toggleMode()"> 
                     <span>Auto</span>
                 </label>
-                <!-- 手动刷新按钮 -->
-                <span class="refresh-icon" onclick="manualRefresh()" title="Force Refresh">↻</span>
+                <span class="refresh-icon" onclick="manualRefresh()" title="Refresh">↻</span>
             </div>
-            <div class="status-right" id="last-update">Waiting...</div>
+            <div class="status-right" id="last-update" style="font-family: monospace;">Waiting...</div>
         </div>
 
         <div id="chat-container"></div>
 
         <div id="input-area">
             <input type="text" id="nick-input" placeholder="Name" maxlength="10">
-            <input type="text" id="msg-input" placeholder="Message..." maxlength="300" onkeypress="if(event.key==='Enter') sendMsg()">
-            <button id="send-btn" onclick="sendMsg()">Send</button>
+            
+            <div class="msg-wrapper">
+                <!-- oninput 用于实时监听输入变化 -->
+                <input type="text" id="msg-input" placeholder="Type a message..." maxlength="300" 
+                       onkeypress="if(event.key==='Enter') sendMsg()" 
+                       oninput="updateCharCount()">
+                <span id="char-count">0/300</span>
+            </div>
+
+            <button id="send-btn" onclick="sendMsg()">➤</button>
         </div>
     </div>
 
@@ -88,22 +137,39 @@
         const API = '/api/msg';
         let token = localStorage.getItem('cf_im_token');
         let pollingInterval = null;
+        const MAX_CHARS = 300;
 
-        // 页面加载
         if (token) {
             showApp();
             document.getElementById('nick-input').value = localStorage.getItem('cf_im_nick') || '';
-            // 默认开启轮询
-            toggleMode(); 
+            toggleMode();
         }
 
+        // --- UI组件: Toast ---
+        function showToast(msg, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const el = document.createElement('div');
+            el.className = `toast ${type}`;
+            el.innerText = msg;
+            container.appendChild(el);
+            // 3秒后自动消失
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(-20px)';
+                setTimeout(() => el.remove(), 300);
+            }, 3000);
+        }
+
+        // --- 核心功能 ---
         function doLogin() {
             const input = document.getElementById('pwd-input').value;
             if (input) {
                 token = input;
                 localStorage.setItem('cf_im_token', input);
                 showApp();
-                toggleMode(); // 登录后启动
+                toggleMode();
+            } else {
+                showToast("Password required", "error");
             }
         }
 
@@ -117,44 +183,48 @@
             document.getElementById('app').style.display = 'flex';
         }
 
-        // --- 新增：模式切换逻辑 ---
         function toggleMode() {
             const isAuto = document.getElementById('auto-mode').checked;
-            
             if (isAuto) {
-                // 如果是自动模式：立即拉取一次，然后每5秒拉一次
                 fetchMsgs();
-                if (!pollingInterval) {
-                    pollingInterval = setInterval(fetchMsgs, 5000);
-                }
+                if (!pollingInterval) pollingInterval = setInterval(fetchMsgs, 5000);
             } else {
-                // 如果是手动模式：清除定时器
-                if (pollingInterval) {
-                    clearInterval(pollingInterval);
-                    pollingInterval = null;
-                }
+                if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
             }
         }
 
-        // --- 新增：手动刷新 ---
         function manualRefresh() {
-            // 给个小反馈，让文字闪一下
             const statusTxt = document.getElementById('last-update');
             statusTxt.style.opacity = '0.5';
-            fetchMsgs().then(() => {
-                statusTxt.style.opacity = '1';
-            });
+            fetchMsgs().then(() => statusTxt.style.opacity = '1');
         }
 
-        // 核心拉取
+        // --- 实时字数统计逻辑 ---
+        function updateCharCount() {
+            const input = document.getElementById('msg-input');
+            const countEl = document.getElementById('char-count');
+            const len = input.value.length;
+            
+            countEl.innerText = `${len}/${MAX_CHARS}`;
+            
+            // 状态颜色逻辑
+            countEl.className = ''; // 重置
+            if (len >= MAX_CHARS) {
+                countEl.classList.add('limit');
+                // 手机震动反馈 (如果在支持的设备上)
+                if(navigator.vibrate) navigator.vibrate(50);
+            } else if (len > MAX_CHARS * 0.9) {
+                countEl.classList.add('near-limit');
+            }
+        }
+
         async function fetchMsgs() {
             if (!token) return;
             try {
                 const res = await fetch(API, { headers: { 'x-auth-token': token } });
-                
                 if (res.status === 401) {
-                    alert("Session expired");
-                    doLogout();
+                    showToast("Token Expired", "error");
+                    setTimeout(doLogout, 2000);
                     return;
                 }
                 if (!res.ok) return;
@@ -162,10 +232,8 @@
                 const list = await res.json();
                 if (Array.isArray(list)) {
                     render(list);
-                    // --- 更新时间戳 ---
-                    const now = new Date();
-                    const timeStr = now.toTimeString().split(' ')[0]; // "11:25:30"
-                    document.getElementById('last-update').innerText = `Updated: ${timeStr}`;
+                    const timeStr = new Date().toTimeString().split(' ')[0];
+                    document.getElementById('last-update').innerText = `Sync: ${timeStr}`;
                 }
             } catch (e) { console.error(e); }
         }
@@ -177,7 +245,11 @@
             
             const content = msgInput.value.trim();
             const nickname = nickInput.value.trim();
-            if (!content) return;
+
+            if (!content) {
+                showToast("Message cannot be empty", "error");
+                return;
+            }
 
             if (nickname) localStorage.setItem('cf_im_nick', nickname);
 
@@ -189,9 +261,14 @@
                     body: JSON.stringify({ content, nickname })
                 });
                 msgInput.value = '';
+                updateCharCount(); // 发送后重置计数
                 await fetchMsgs(); 
-            } catch (e) { alert("Failed"); } 
-            finally { btn.disabled = false; msgInput.focus(); }
+            } catch (e) { 
+                showToast("Send Failed", "error"); 
+            } finally { 
+                btn.disabled = false; 
+                msgInput.focus(); 
+            }
         }
 
         function render(data) {
