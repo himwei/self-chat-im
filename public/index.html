@@ -115,13 +115,31 @@
             if (!token) return;
             try {
                 const res = await fetch(API, { headers: { 'x-auth-token': token } });
+                
+                // 1. 处理 401 鉴权失败
                 if (res.status === 401) {
                     clearInterval(pollingInterval);
                     alert("密码错误或已更改，请重新登录");
                     doLogout();
                     return;
                 }
+
+                // 2. 处理 500 或其他服务器错误
+                if (!res.ok) {
+                    // 尝试读取错误信息
+                    const errData = await res.json().catch(() => ({}));
+                    console.error("Server Error:", errData);
+                    return; // 遇到错误直接停止，不要往下走去调 .map
+                }
+
                 const list = await res.json();
+
+                // 3. 最后的防线：确保拿到的是数组
+                if (!Array.isArray(list)) {
+                    console.error("Data format error: expected Array, got", list);
+                    return;
+                }
+
                 render(list);
             } catch (e) { console.error("Polling error", e); }
         }
