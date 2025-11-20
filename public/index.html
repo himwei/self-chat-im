@@ -22,7 +22,7 @@
             display: flex; flex-direction: column; height: 100vh; overflow: hidden;
         }
         
-        /* --- 组件: Toast (仿 AntDesign Message) --- */
+        /* --- 组件: Toast --- */
         #toast-container {
             position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
             z-index: 200; pointer-events: none; width: 90%; max-width: 400px;
@@ -61,23 +61,15 @@
         .msg-meta { font-size: 10px; color: #9ca3af; margin-bottom: 3px; margin-left: 2px; }
         .msg-bubble { padding: 10px 14px; border-radius: 12px; border-top-left-radius: 2px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.02); line-height: 1.5; word-break: break-word; font-size: 15px; border: 1px solid #f0f0f0; }
         
-        /* --- 输入区域 (优化版) --- */
+        /* --- 输入区域 --- */
         #input-area { background: #fff; padding: 10px; border-top: 1px solid #eee; display: flex; gap: 8px; flex-shrink: 0; align-items: flex-end; position: relative; }
-        
-        /* 昵称框 */
         #nick-input { width: 70px; height: 40px; padding: 0 5px; border: 1px solid #e5e7eb; border-radius: 8px; text-align: center; font-size: 13px; background: #f9fafb; outline: none; }
-        
-        /* 消息框容器：为了放字数统计 */
         .msg-wrapper { flex: 1; position: relative; display: flex; flex-direction: column; }
-        #msg-input { width: 100%; height: 40px; padding: 8px 12px; padding-right: 50px; /* 给计数留位置 */ border: 1px solid #e5e7eb; border-radius: 20px; outline: none; font-size: 15px; transition: all 0.2s; -webkit-appearance: none; }
+        #msg-input { width: 100%; height: 40px; padding: 8px 12px; padding-right: 50px; border: 1px solid #e5e7eb; border-radius: 20px; outline: none; font-size: 15px; transition: all 0.2s; -webkit-appearance: none; }
         #msg-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
-        
-        /* 字数统计 */
         #char-count { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 11px; color: #9ca3af; pointer-events: none; transition: color 0.2s; }
         #char-count.near-limit { color: var(--warning); font-weight: bold; }
         #char-count.limit { color: var(--danger); font-weight: bold; }
-
-        /* 发送按钮 */
         #send-btn { width: 45px; height: 40px; background: var(--primary); color: white; border: none; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; transition: 0.2s; }
         #send-btn:active { transform: scale(0.95); }
         #send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
@@ -88,17 +80,14 @@
 </head>
 <body>
 
-    <!-- Toast 容器 -->
     <div id="toast-container"></div>
 
-    <!-- 登录层 -->
     <div id="login-layer">
         <h2 style="margin-bottom: 20px; color: #333;">🔐 self-chat</h2>
         <input type="password" id="pwd-input" placeholder="Access Password">
         <button onclick="doLogin()">Enter</button>
     </div>
 
-    <!-- 主应用 -->
     <div id="app" style="display:none; flex-direction: column; height: 100%;">
         <header>
             <div class="logo">self-chat</div>
@@ -108,7 +97,8 @@
         <div id="status-bar">
             <div class="status-left">
                 <label class="toggle-label">
-                    <input type="checkbox" id="auto-mode" checked onchange="toggleMode()"> 
+                    <!-- 核心修改：默认去掉了 checked -->
+                    <input type="checkbox" id="auto-mode" onchange="toggleMode()"> 
                     <span>Auto</span>
                 </label>
                 <span class="refresh-icon" onclick="manualRefresh()" title="Refresh">↻</span>
@@ -120,15 +110,12 @@
 
         <div id="input-area">
             <input type="text" id="nick-input" placeholder="Name" maxlength="10">
-            
             <div class="msg-wrapper">
-                <!-- oninput 用于实时监听输入变化 -->
                 <input type="text" id="msg-input" placeholder="Type a message..." maxlength="300" 
                        onkeypress="if(event.key==='Enter') sendMsg()" 
                        oninput="updateCharCount()">
                 <span id="char-count">0/300</span>
             </div>
-
             <button id="send-btn" onclick="sendMsg()">➤</button>
         </div>
     </div>
@@ -142,32 +129,25 @@
         if (token) {
             showApp();
             document.getElementById('nick-input').value = localStorage.getItem('cf_im_nick') || '';
-            toggleMode();
+            initApp(); // 使用新的初始化逻辑
         }
 
-        // --- UI组件: Toast ---
         function showToast(msg, type = 'success') {
             const container = document.getElementById('toast-container');
             const el = document.createElement('div');
             el.className = `toast ${type}`;
             el.innerText = msg;
             container.appendChild(el);
-            // 3秒后自动消失
-            setTimeout(() => {
-                el.style.opacity = '0';
-                el.style.transform = 'translateY(-20px)';
-                setTimeout(() => el.remove(), 300);
-            }, 3000);
+            setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000);
         }
 
-        // --- 核心功能 ---
         function doLogin() {
             const input = document.getElementById('pwd-input').value;
             if (input) {
                 token = input;
                 localStorage.setItem('cf_im_token', input);
                 showApp();
-                toggleMode();
+                initApp();
             } else {
                 showToast("Password required", "error");
             }
@@ -183,13 +163,24 @@
             document.getElementById('app').style.display = 'flex';
         }
 
+        // --- 新的初始化逻辑 ---
+        function initApp() {
+            // 1. 无论开关状态，刚进去必须查一次
+            fetchMsgs();
+            // 2. 检查开关状态 (默认现在是关闭的)
+            toggleMode();
+        }
+
         function toggleMode() {
             const isAuto = document.getElementById('auto-mode').checked;
             if (isAuto) {
-                fetchMsgs();
+                // 开启轮询
                 if (!pollingInterval) pollingInterval = setInterval(fetchMsgs, 5000);
+                showToast("Auto polling ON", "success");
             } else {
+                // 关闭轮询
                 if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
+                // 这里的 toast 可加可不加，刚进去时别弹比较好
             }
         }
 
@@ -199,19 +190,14 @@
             fetchMsgs().then(() => statusTxt.style.opacity = '1');
         }
 
-        // --- 实时字数统计逻辑 ---
         function updateCharCount() {
             const input = document.getElementById('msg-input');
             const countEl = document.getElementById('char-count');
             const len = input.value.length;
-            
             countEl.innerText = `${len}/${MAX_CHARS}`;
-            
-            // 状态颜色逻辑
-            countEl.className = ''; // 重置
+            countEl.className = ''; 
             if (len >= MAX_CHARS) {
                 countEl.classList.add('limit');
-                // 手机震动反馈 (如果在支持的设备上)
                 if(navigator.vibrate) navigator.vibrate(50);
             } else if (len > MAX_CHARS * 0.9) {
                 countEl.classList.add('near-limit');
@@ -228,7 +214,6 @@
                     return;
                 }
                 if (!res.ok) return;
-
                 const list = await res.json();
                 if (Array.isArray(list)) {
                     render(list);
@@ -242,15 +227,10 @@
             const msgInput = document.getElementById('msg-input');
             const nickInput = document.getElementById('nick-input');
             const btn = document.getElementById('send-btn');
-            
             const content = msgInput.value.trim();
             const nickname = nickInput.value.trim();
 
-            if (!content) {
-                showToast("Message cannot be empty", "error");
-                return;
-            }
-
+            if (!content) { showToast("Empty message", "error"); return; }
             if (nickname) localStorage.setItem('cf_im_nick', nickname);
 
             btn.disabled = true;
@@ -261,8 +241,18 @@
                     body: JSON.stringify({ content, nickname })
                 });
                 msgInput.value = '';
-                updateCharCount(); // 发送后重置计数
+                updateCharCount();
+                
+                // --- 核心修改：发送后的刷新逻辑 ---
+                // 1. 立即刷新 (为了更快的反馈)
                 await fetchMsgs(); 
+                
+                // 2. 延迟 5秒 再刷新一次 (为了解决 KV 延迟导致的漏消息，即 Double Check)
+                setTimeout(() => {
+                    fetchMsgs();
+                    console.log("Delayed fetch executed");
+                }, 5000);
+
             } catch (e) { 
                 showToast("Send Failed", "error"); 
             } finally { 
