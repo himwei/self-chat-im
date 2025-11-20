@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- 适配移动端 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>self-chat</title>
+    <!-- 防止浏览器控制台报 favicon 404 错误 -->
+    <link rel="icon" href="data:;base64,=">
+    <style>
+        :root { --primary: #3b82f6; --bg: #f3f4f6; --bubble-me: #eff6ff; --bubble-other: #ffffff; --text: #1f2937; }
+        * { box-sizing: border-box; }
+        body { max-width: 800px; margin: 0 auto; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* 全屏登录遮罩 */
+        #login-layer { position: fixed; inset: 0; background: #fff; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        #login-layer h2 { margin-bottom: 20px; font-weight: 600; color: #333; }
+        #login-layer input { padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%; max-width: 260px; font-size: 16px; outline: none; margin-bottom: 15px; text-align: center; }
+        #login-layer button { padding: 12px 40px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; transition: 0.2s; }
+        
+        /* 顶部导航 */
+        header { padding: 15px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .logo { font-weight: 700; font-size: 18px; color: #111827; letter-spacing: -0.5px; }
+        .logout-btn { background: none; border: none; color: #6b7280; font-size: 13px; cursor: pointer; padding: 5px; }
+        
+        /* 消息列表区 */
+        #chat-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column-reverse; gap: 15px; -webkit-overflow-scrolling: touch; }
+        
+        /* 消息气泡 */
+        .msg-item { display: flex; flex-direction: column; align-items: flex-start; max-width: 88%; animation: slideUp 0.2s ease-out; }
+        .msg-meta { font-size: 11px; color: #9ca3af; margin-bottom: 4px; margin-left: 2px; }
+        .msg-bubble { padding: 10px 14px; border-radius: 12px; border-top-left-radius: 2px; background: var(--bubble-other); box-shadow: 0 1px 2px rgba(0,0,0,0.05); line-height: 1.5; word-break: break-word; font-size: 15px; }
+        
+        /* 底部输入区 */
+        #input-area { background: #fff; padding: 12px; border-top: 1px solid #e5e7eb; display: flex; gap: 10px; flex-shrink: 0; align-items: center; }
+        #nick-input { width: 70px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; text-align: center; font-size: 13px; background: #f9fafb; outline: none; }
+        #msg-input { flex: 1; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 20px; background: #f9fafb; font-size: 15px; outline: none; transition: all 0.2s; }
+        #msg-input:focus { background: #fff; border-color: var(--primary); }
+        
+        #send-btn { background: var(--primary); color: white; border: none; width: 64px; height: 38px; border-radius: 19px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+        #send-btn:disabled { opacity: 0.6; cursor: not-allowed; background: #9ca3af; }
+        
+        @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <!-- 1. 登录层 -->
+    <div id="login-layer">
+        <h2>🔒 self-chat</h2>
+        <input type="password" id="pwd-input" placeholder="Enter Password">
+        <button onclick="doLogin()">Enter</button>
+    </div>
+
+    <!-- 2. 主应用 -->
+    <div id="app" style="display:none; flex-direction: column; height: 100%;">
+        <header>
+            <div class="logo">self-chat</div>
+            <button class="logout-btn" onclick="doLogout()">Logout</button>
+        </header>
+
+        <div id="chat-container">
+            <!-- 消息会渲染在这里 -->
+        </div>
+
+        <div id="input-area">
+            <input type="text" id="nick-input" placeholder="Name" maxlength="10">
+            <input type="text" id="msg-input" placeholder="Message..." maxlength="300" onkeypress="if(event.key==='Enter') sendMsg()">
+            <button id="send-btn" onclick="sendMsg()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api/msg';
+        let token = localStorage.getItem('cf_im_token');
+        let pollingInterval = null;
+
+        // 启动逻辑
+        if (token) {
+            showApp();
+            // 恢复上次的昵称
+            document.getElementById('nick-input').value = localStorage.getItem('cf_im_nick') || '';
+            startPolling();
+        }
+
+        function doLogin() {
+            const input = document.getElementById('pwd-input').value;
+            if (input) {
+                token = input;
+                localStorage.setItem('cf_im_token', input);
+                showApp();
+                startPolling();
+            }
+        }
+
+        function doLogout() {
+            localStorage.removeItem('cf_im_token');
+            location.reload();
+        }
+
+        function showApp() {
+            document.getElementById('login-layer').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
+        }
+
+        function startPolling() {
+            fetchMsgs(); // 立即执行一次
+            if (pollingInterval) clearInterval(pollingInterval);
+            // 3秒轮询，配合 metadata 优化，安全且免费
+            pollingInterval = setInterval(fetchMsgs, 3000);
+        }
+
+        // 核心：拉取消息
+        async function fetchMsgs() {
+            if (!token) return;
+            try {
+                const res = await fetch(API, { headers: { 'x-auth-token': token } });
+                if (res.status === 401) {
+                    clearInterval(pollingInterval);
+                    alert("密码错误或已更改，请重新登录");
+                    doLogout();
+                    return;
+                }
+                const list = await res.json();
+                render(list);
+            } catch (e) { console.error("Polling error", e); }
+        }
+
+        // 核心：发送消息
+        async function sendMsg() {
+            const msgInput = document.getElementById('msg-input');
+            const nickInput = document.getElementById('nick-input');
+            const sendBtn = document.getElementById('send-btn');
+
+            const content = msgInput.value.trim();
+            const nickname = nickInput.value.trim();
+
+            if (!content) return;
+            if (nickname) localStorage.setItem('cf_im_nick', nickname);
+
+            // UI 反馈：禁用按钮
+            sendBtn.disabled = true;
+            
+            try {
+                await fetch(API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                    body: JSON.stringify({ content, nickname })
+                });
+                msgInput.value = '';
+                msgInput.focus(); 
+                await fetchMsgs(); // 发送后立即刷新
+            } catch (e) {
+                alert("发送失败，请检查网络");
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        // 渲染列表
+        function render(data) {
+            const box = document.getElementById('chat-container');
+            // 生成 HTML
+            const html = data.map(item => `
+                <div class="msg-item">
+                    <div class="msg-meta">
+                        <strong>${esc(item.user)}</strong> · ${new Date(item.ts).toLocaleTimeString()}
+                    </div>
+                    <div class="msg-bubble">${esc(item.text)}</div>
+                </div>
+            `).join('');
+            
+            // 简单的 Diff，防止闪烁
+            if (box.innerHTML !== html) {
+                box.innerHTML = html;
+            }
+        }
+
+        // 防 XSS 转义
+        function esc(str) {
+            return str ? str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
+        }
+    </script>
+</body>
+</html>
