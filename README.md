@@ -1,7 +1,7 @@
 # 💬 self-chat
 
-> A minimalist, serverless, and private instant messenger built on the Edge.
-> 一个基于 Cloudflare 构建的极简、私密、零成本即时通讯工具。
+> A minimalist, private, and eco-friendly instant messenger built on Cloudflare Edge.
+> 一个基于 Cloudflare 构建的极简、私密、零成本且节能的即时通讯工具。
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Deploy](https://img.shields.io/badge/deploy-Cloudflare%20Pages-orange.svg)
@@ -11,28 +11,36 @@
 
 **self-chat** 是一个为个人或小团队打造的私密聊天室/备忘录。它完全运行在 Cloudflare 的边缘网络上，利用 **Pages Functions** 处理逻辑，**KV** 存储数据。
 
-**核心设计哲学**：
+**V1.3 核心理念**：
 *   **Privacy First**: 只有持有密码的人才能访问。
-*   **Zero Cost**: 通过极致的 KV Metadata 优化，在 Cloudflare 免费额度下可实现高频使用。
-*   **No Ops**: 无需服务器，无需数据库维护，推送到 Git 即可自动部署。
+*   **Eco Mode**: 默认关闭自动轮询，采用“按需同步”机制，极致省流。
+*   **Zero Cost**: 通过 KV Metadata 优化，读取成本降低 20 倍。
 
 ## ✨ 功能特性 (Features)
 
-- **🔐 私密鉴权**: 基于 Token 的访问控制，并在本地持久化登录状态。
-- **⚡️ 极速响应**: 部署在全球边缘节点，毫秒级延迟。
-- **📱 设备感知**: 智能识别发送端设备（如 "iPhone Mobile", "Windows PC"），在未填昵称时自动兜底。
-- **💸 极致省钱架构**: 采用 **KV Metadata** 存储方案，读取列表时不消耗 Read Ops (Get)，将数据库读取成本降低 **20倍**。
-- **🔄 实时同步**: 前端自动轮询，多端消息即时同步。
-- **🎨 极简 UI**: 响应式设计，完美适配桌面与移动端，包含发送状态反馈。
+### 🎨 现代交互 (UI/UX)
+- **Glassmorphism Design**: 采用毛玻璃特效、圆角卡片与柔和阴影，视觉体验现代化。
+- **Toast Notifications**: 优雅的顶部悬浮提示，替代传统的 alert 弹窗。
+- **Smart Input**: 实时字数统计 (Counter)，临界值变色预警 + 震动反馈 (Haptic Feedback)。
+- **Responsive**: 完美适配桌面端与移动端，手机端自动优化按钮布局。
+
+### ⚡️ 核心逻辑 (Core Logic)
+- **🔐 私密鉴权**: 基于 Token 的访问控制，本地持久化登录状态。
+- **🌱 Eco Mode (节能模式)**: 
+    - 默认**不开启**自动轮询，进入页面仅拉取一次。
+    - 支持手动开启 `Auto` 模式 (5s 轮询)。
+    - 发送消息后触发 **Double Check** 机制（立即刷新 + 5秒延迟刷新），确保数据一致性。
+- **💸 极致省钱**: 采用 **KV Metadata** 存储方案，List 操作直接返回数据，不消耗 Get 额度。
+- **📱 设备感知**: 智能识别发送端设备（如 "iPhone Mobile", "Windows PC"），未填昵称时自动兜底。
 
 ## 🛠 技术栈 (Tech Stack)
 
 | 模块 | 技术/服务 | 说明 |
 | :--- | :--- | :--- |
-| **Frontend** | Vanilla JS + HTML5 | 无框架依赖，体积极小，加载极快 |
-| **Backend** | Cloudflare Pages Functions | 也就是 Cloudflare Workers (Serverless) |
-| **Database** | Cloudflare KV | 键值对存储 (利用 Metadata 存储 Payload) |
-| **Deploy** | Cloudflare Pages | 自动化 CI/CD |
+| **Frontend** | Vanilla JS + HTML5 + CSS3 | 无框架依赖，单文件组件，加载飞快 |
+| **Backend** | Cloudflare Pages Functions | Serverless 架构 (Workers) |
+| **Database** | Cloudflare KV | 键值对存储 (利用 Metadata 优化 Payload) |
+| **Deploy** | Cloudflare Pages | Git 自动化 CI/CD |
 
 ## 🚀 快速部署 (Quick Start)
 
@@ -67,19 +75,21 @@ Fork 本仓库或下载代码推送到你自己的 GitHub 仓库。
 *   Variable name: `IM_KV` (⚠️ 必须完全一致)
 *   KV Namespace: 选择第2步创建的 `IM_KV`
 
-### 5. 重试部署
-配置完成后，前往 **Deployments** 页面，点击最新部署右侧的 `...` -> **Retry deployment** 以使配置生效。
+### 5. 重试部署 (Retry)
+配置完成后，前往 **Deployments** 页面，点击最新部署右侧的 `...` -> **Retry deployment** 以使环境变量和 KV 绑定生效。
 
-## 📝 环境变量说明
+## 📝 使用说明
 
-| 变量名 | 类型 | 描述 |
-| :--- | :--- | :--- |
-| `SECRET_PASSWORD` | Environment Variable | 登录聊天室的唯一凭证 (密码) |
-| `IM_KV` | KV Binding | 绑定的 Cloudflare KV 命名空间 |
+1.  **登录**: 输入设置的 `SECRET_PASSWORD`。
+2.  **发送**: 输入消息回车或点击发送。昵称选填，不填则自动显示设备名。
+3.  **刷新**: 
+    - **手动**: 点击顶部状态栏的 `↻` 图标。
+    - **自动**: 勾选 `Auto` 复选框开启 5秒 轮询。
+4.  **节能**: 默认情况下，发送完消息会自动刷新两次（立即 + 5秒后），无需手动干预。
 
 ## 🤝 贡献 (Contributing)
 
-这是一个 Vibe Coding 项目 (AI-Assisted)。如果你有更好的想法（比如支持图片上传、WebSocket 改造），欢迎提交 PR！
+这是一个 **Vibe Coding** 项目 (AI-Assisted)。如果你有更好的想法，欢迎提交 PR！
 
 ## 📄 License
 
