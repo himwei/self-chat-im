@@ -83,4 +83,4 @@ Fork 本仓库或下载代码推送到你自己的 GitHub 仓库。
 
 ## 📄 License
 
-MIT License © 2024
+MIT License © 2025
