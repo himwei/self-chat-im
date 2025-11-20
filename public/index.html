@@ -107,7 +107,7 @@
             fetchMsgs(); // 立即执行一次
             if (pollingInterval) clearInterval(pollingInterval);
             // 3秒轮询，配合 metadata 优化，安全且免费
-            pollingInterval = setInterval(fetchMsgs, 3000);
+            pollingInterval = setInterval(fetchMsgs, 6000);
         }
 
         // 核心：拉取消息
